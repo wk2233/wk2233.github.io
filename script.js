@@ -403,47 +403,21 @@ statsIo.observe(document.querySelector('.stats-bar'));
 /* =====================================================
    Contact Form
 ===================================================== */
-document.getElementById('contactForm').addEventListener('submit', async function(e) {
+document.getElementById('contactForm').addEventListener('submit', function(e) {
   e.preventDefault();
   const name = document.getElementById('formName').value.trim();
   const email = document.getElementById('formEmail').value.trim();
   const msg = document.getElementById('formMsg').value.trim();
   const tip = document.getElementById('formTip');
-  const btn = this.querySelector('button[type="submit"]');
 
-  btn.disabled = true;
-  btn.textContent = '发送中...';
-  tip.style.color = '#a0a0b8';
-  tip.textContent = '正在发送，请稍候...';
+  const subject = encodeURIComponent(`博客留言来自 ${name}`);
+  const body = encodeURIComponent(`姓名：${name}\n邮箱：${email}\n\n留言内容：\n${msg}`);
+  window.location.href = `mailto:1178257340@qq.com?subject=${subject}&body=${body}`;
 
-  try {
-    const res = await fetch('https://formsubmit.co/ajax/1178257340@qq.com', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({
-        name,
-        email,
-        message: msg,
-        _subject: `博客留言来自 ${name}`,
-        _template: 'table'
-      })
-    });
-    const data = await res.json();
-    if (data.success === 'true' || data.success === true) {
-      tip.style.color = '#55efc4';
-      tip.textContent = `✓ 消息已发送！谢谢你 ${name}，我会尽快回复。`;
-      this.reset();
-    } else {
-      throw new Error('failed');
-    }
-  } catch {
-    tip.style.color = '#fd79a8';
-    tip.textContent = '发送失败，请稍后再试或直接发邮件联系我。';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '发送消息 ✉';
-    setTimeout(() => { tip.textContent = ''; }, 6000);
-  }
+  tip.style.color = '#55efc4';
+  tip.textContent = '✓ 已打开邮件客户端，发送后我会收到你的留言！';
+  this.reset();
+  setTimeout(() => { tip.textContent = ''; }, 6000);
 });
 
 /* =====================================================
