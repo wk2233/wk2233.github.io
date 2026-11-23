@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>
+(() => {
+  const p = location.pathname;
+  const base = p.endsWith('/') ? p : p.replace(/\/[^/]*$/, '/');
+  const el = document.createElement('base');
+  el.href = base;
+  document.head.prepend(el);
+})();
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Petalwake</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..500&family=Karla:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./src/ui/style.css">
+<link rel="stylesheet" href="./src/ui/journal.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/examples/jsm/" } }
+</script>
+</head>
+<body>
+<canvas id="view"></canvas>
+
+<div id="hud" hidden>
+  <div class="hud-tl">
+    <div class="seeds"><span class="seeds-icon"></span><span id="seedCount">0</span><span class="seeds-of">/ <span id="seedTotal">0</span></span>
+      <span class="compass" id="compass" title="nearest wind seed"><svg viewBox="-12 -12 24 24" width="22" height="22"><path d="M0 -9 L5 6 L0 3 L-5 6 Z" fill="currentColor"/></svg><span id="seedDist"></span></span>
+    </div>
+    <div class="place" id="place"></div>
+  </div>
+  <div class="hud-bl">
+    <div class="gust"><div class="gust-fill" id="gustFill"></div></div>
+    <div class="gust-label">gust</div>
+    <div class="trick" id="trick" hidden><kbd>Q</kbd>kickflip</div>
+  </div>
+  <div class="hud-br"><span id="speed">0</span><small>km/h</small></div>
+  <div class="hud-tr" id="job" hidden>
+    <div class="job-kicker"><span class="job-icon"></span>parcel for</div>
+    <div class="job-name"><span id="jobName"></span><span class="job-spot" id="jobSpot"></span></div>
+    <div class="job-meta"><span class="compass" id="jobCompass" title="where the parcel is going"><svg viewBox="-12 -12 24 24" width="22" height="22"><path d="M0 -9 L5 6 L0 3 L-5 6 Z" fill="currentColor"/></svg><span id="jobDist"></span></span><span class="job-count"><span id="jobCount">0</span> delivered</span></div>
+  </div>
+  <div class="prompt" id="prompt"></div>
+  <div class="card" id="card"><div class="card-kicker" id="cardKicker"></div><div class="card-name" id="cardName"></div><div class="card-sub" id="cardSub"></div></div>
+  <div class="toast" id="toast"></div>
+</div>
+
+<div id="title">
+  <div class="title-inner">
+    <p class="kicker">a broom, an island, a good wind</p>
+    <h1>Petalwake</h1>
+    <div class="bar"><div class="bar-fill" id="loadFill" style="width:8%;animation:pw-load 1.2s ease-in-out infinite alternate"></div></div>
+    <p class="status" id="loadStatus">正在加载资源，请稍候…</p>
+    <p id="bootErr" style="display:none;margin-top:14px;max-width:90vw;color:#ff9ec4;font-size:13px;line-height:1.45;word-break:break-word"></p>
+    <style>@keyframes pw-load{from{width:8%}to{width:42%}}</style>
+    <script>
+      window.addEventListener('error', function (e) {
+        var el = document.getElementById('bootErr');
+        if (!el) return;
+        el.style.display = 'block';
+        el.textContent = '加载失败: ' + (e.message || e);
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        var el = document.getElementById('bootErr');
+        if (!el) return;
+        el.style.display = 'block';
+        el.textContent = '加载失败: ' + (e.reason && (e.reason.message || e.reason) || e);
+      });
+    </script>
+    <button id="start" hidden>Take off</button>
+    <div class="keys" id="keys" hidden>
+      <div class="keys-desk">
+        <div><kbd>W</kbd><kbd>S</kbd> dive · climb</div>
+        <div><kbd>A</kbd><kbd>D</kbd> bank</div>
+        <div><kbd>Shift</kbd> ride the gust</div>
+        <div><kbd>Space</kbd> ease up</div>
+        <div><kbd>Mouse</kbd> steer · <kbd>C</kbd> camera · <kbd>I</kbd> invert pitch</div>
+        <div><kbd>P</kbd> hide HUD · <kbd>M</kbd> mute · <kbd>J</kbd> journal</div>
+      </div>
+      <div class="keys-touch" hidden>
+        <div>左摇杆转向 · 俯仰</div>
+        <div>右上 <b>阵风</b> 加速 · 右下 <b>刹车</b></div>
+        <div>双击刹车 · 着陆交货</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 手机触控：左摇杆 + 右加速/刹车（仅触屏设备显示） -->
+<div id="touch" hidden>
+  <div id="touchStick" class="touch-stick" aria-label="steer">
+    <div id="touchKnob" class="touch-knob"></div>
+  </div>
+  <button type="button" id="touchBoost" class="touch-btn touch-boost" aria-label="boost">阵风</button>
+  <button type="button" id="touchBrake" class="touch-btn touch-brake" aria-label="brake">刹车</button>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
