@@ -1,10 +1,14 @@
-// Mobile-only touch flight. Keyboard / mouse / gamepad are off.
-// Right stick: bank (X) + throttle (Y). Does NOT change pitch attitude.
-//   centre  -> brake (Space)
-//   light forward -> cruise
-//   far forward  -> boost (gust)
-// Left buttons: Climb / Dive (W / S) — only these change pitch.
+// Mobile-only: one polar stick. Keyboard / mouse / gamepad are off.
+// Direction = attitude (turn + climb/dive). Radius = throttle.
+//   centre        -> brake (Space)
+//   mid ring      -> cruise
+//   outer ring    -> boost (gust)
+// Soft curves so it is not twitchy. Double-tap centre / release to land.
 const DOUBLE_TAP = 320;
+const BRAKE_R = 0.18;
+const BOOST_R = 0.68;
+const TURN_GAIN = 0.45;
+const PITCH_GAIN = 0.34;
 
 const isTouchDevice = () =>
   (typeof window !== 'undefined') &&
@@ -26,8 +30,6 @@ export class Input {
     this.pressed = new Set();
     this.touchUI = true;
     this.touchStick = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
-    this.touchClimb = false;
-    this.touchDive = false;
     this._touchRoot = null;
     this._tap = -1e9;
     this._wasBrake = true;
@@ -52,9 +54,7 @@ export class Input {
     const root = document.getElementById('touch');
     const base = document.getElementById('touchStick');
     const knob = document.getElementById('touchKnob');
-    const climbBtn = document.getElementById('touchClimb');
-    const diveBtn = document.getElementById('touchDive');
-    if (!root || !base || !knob || !climbBtn || !diveBtn) return;
+    if (!root || !base || !knob) return;
 
     root.hidden = true;
     this._touchRoot = root;
@@ -122,39 +122,6 @@ export class Input {
     base.addEventListener('mousedown', onStickStart);
     window.addEventListener('mousemove', onStickMove);
     window.addEventListener('mouseup', onStickEnd);
-
-    const bindHold = (el, on, off) => {
-      const down = (e) => {
-        if (!this.enabled) return;
-        e.preventDefault();
-        e.stopPropagation();
-        on();
-        el.classList.add('active');
-      };
-      const up = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        off();
-        el.classList.remove('active');
-      };
-      el.addEventListener('touchstart', down, { passive: false });
-      el.addEventListener('touchend', up, { passive: false });
-      el.addEventListener('touchcancel', up, { passive: false });
-      el.addEventListener('mousedown', down);
-      el.addEventListener('mouseup', up);
-      el.addEventListener('mouseleave', up);
-    };
-
-    bindHold(
-      climbBtn,
-      () => { this.touchClimb = true; },
-      () => { this.touchClimb = false; },
-    );
-    bindHold(
-      diveBtn,
-      () => { this.touchDive = true; },
-      () => { this.touchDive = false; },
-    );
   }
 
   setTouchVisible(on) {
@@ -177,29 +144,23 @@ export class Input {
   update(dt) {
     let turn = 0, pitch = 0, boost = false, brake = false;
 
-    // Pitch only from Climb / Dive buttons (soft, not twitchy)
-    const pitchGain = 0.42;
-    if (this.touchClimb) pitch += pitchGain;
-    if (this.touchDive) pitch -= pitchGain;
-    if (this.invert) pitch = -pitch;
-
     if (!this.touchStick.active) {
       brake = true;
     } else {
       const sx = this.touchStick.x;
-      const sy = this.touchStick.y; // +down on screen, -up (forward)
+      const sy = this.touchStick.y; // +down on screen
       const mag = Math.hypot(sx, sy);
-      const forward = clamp(-sy, 0, 1);
 
-      if (mag < 0.16) {
+      if (mag < BRAKE_R) {
         brake = true;
         turn = 0;
+        pitch = 0;
       } else {
-        // Stick steers heading only — never changes climb/dive attitude
-        turn = curve(sx) * 0.48;
-
-        if (forward >= 0.70 && mag >= 0.62) boost = true;
-        else boost = false;
+        // Direction = attitude; radius = throttle (independent)
+        turn = curve(sx) * TURN_GAIN;
+        pitch = curve(-sy) * PITCH_GAIN;
+        if (this.invert) pitch = -pitch;
+        boost = mag >= BOOST_R;
         brake = false;
       }
     }
@@ -221,8 +182,6 @@ export class Input {
       this.pitch = 0;
       this.boost = false;
       this.brake = false;
-      this.touchClimb = false;
-      this.touchDive = false;
       this._smTurn = 0;
       this._smPitch = 0;
     }

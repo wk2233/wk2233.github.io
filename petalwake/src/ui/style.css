@@ -5,12 +5,19 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { margin: 0; height: 100%; background: #0b1420; overflow: hidden; touch-action: none; }
+html, body {
+  margin: 0; height: 100%; height: 100dvh; max-height: 100dvh;
+  background: #0b1420; overflow: hidden; touch-action: none;
+}
 body {
   font-family: "Karla", system-ui, sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased;
   -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+  position: fixed; inset: 0; width: 100%;
 }
-#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; outline: none; touch-action: none; }
+#view {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  display: block; outline: none; touch-action: none;
+}
 
 /* ---------- title ---------- */
 #title {
@@ -110,77 +117,47 @@ kbd {
   position: fixed; inset: 0; z-index: 4; pointer-events: none;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
-.touch-pitch {
-  pointer-events: none;
-  position: absolute;
-  left: max(18px, env(safe-area-inset-left));
-  bottom: max(40px, env(safe-area-inset-bottom));
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.touch-btn {
-  pointer-events: auto;
-  appearance: none;
-  -webkit-appearance: none;
-  border: 1px solid rgba(255, 248, 236, 0.34);
-  background: rgba(255, 248, 236, 0.12);
-  color: #fff8ec;
-  width: min(78px, 22vw);
-  height: min(78px, 22vw);
-  border-radius: 18px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 0;
-  margin: 0;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  box-shadow: inset 0 0 22px rgba(0, 20, 50, 0.22);
-}
-.touch-btn.active {
-  background: rgba(255, 211, 107, 0.28);
-  border-color: rgba(255, 211, 107, 0.72);
-}
-.touch-btn-glyph {
-  font: 600 18px/1 "Fraunces", Georgia, serif;
-  letter-spacing: 0;
-  opacity: 0.92;
-}
-.touch-btn-label {
-  font: 600 11px/1 "Karla", system-ui, sans-serif;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  opacity: 0.9;
-}
 .touch-stick {
   pointer-events: auto;
   position: absolute;
-  right: max(18px, env(safe-area-inset-right));
-  bottom: max(36px, env(safe-area-inset-bottom));
-  left: auto;
-  transform: none;
-  width: min(156px, 38vw);
-  height: min(156px, 38vw);
+  left: 50%;
+  bottom: max(28px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(168px, 44vw);
+  height: min(168px, 44vw);
   border-radius: 50%;
-  background: rgba(255, 248, 236, 0.12);
-  border: 1px solid rgba(255, 248, 236, 0.32);
+  background: rgba(255, 248, 236, 0.10);
+  border: 1px solid rgba(255, 248, 236, 0.34);
   box-shadow: inset 0 0 28px rgba(0, 20, 50, 0.28);
   touch-action: none;
 }
-.touch-stick.active { background: rgba(255, 248, 236, 0.18); border-color: rgba(255, 211, 107, 0.6); }
+.touch-stick.active { background: rgba(255, 248, 236, 0.16); border-color: rgba(255, 211, 107, 0.6); }
+.touch-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  pointer-events: none; box-sizing: border-box;
+}
+.touch-ring-boost {
+  border: 1px dashed rgba(255, 211, 107, 0.35);
+}
+.touch-ring-cruise {
+  inset: 16%;
+  border: 1px solid rgba(255, 248, 236, 0.18);
+}
+.touch-ring-brake {
+  inset: 41%;
+  background: rgba(255, 248, 236, 0.08);
+  border: 1px solid rgba(255, 248, 236, 0.22);
+}
 .touch-knob {
   position: absolute; left: 50%; top: 50%;
-  width: 40%; height: 40%;
-  margin: -20% 0 0 -20%;
+  width: 36%; height: 36%;
+  margin: -18% 0 0 -18%;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #fff8ec, rgba(255, 158, 196, 0.85));
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
   transform: translate(0, 0);
   will-change: transform;
+  z-index: 1;
 }
 .touch-hint {
   position: absolute;
@@ -198,14 +175,14 @@ kbd {
 .keys-touch { display: none; flex-direction: column; gap: 8px; align-items: center; }
 .keys-touch b { font-weight: 600; color: var(--gold); }
 
-/* HUD 避开摇杆/按钮；永远用触控说明 */
+/* 触控机：HUD 避开摇杆；永远用触控说明 */
 .keys-desk { display: none !important; }
 .keys-touch { display: flex !important; }
 h1 { font-size: clamp(48px, 16vw, 96px); }
 .hud-tl { left: 16px; top: max(14px, env(safe-area-inset-top)); }
 .hud-tr { right: 16px; top: max(14px, env(safe-area-inset-top)); }
-.hud-bl { left: 16px; bottom: max(210px, 48vw); width: 140px; }
-.hud-br { right: 16px; bottom: max(210px, 48vw); font-size: 32px; }
+.hud-bl { left: 16px; bottom: max(220px, 52vw); width: 140px; }
+.hud-br { right: 16px; bottom: max(220px, 52vw); font-size: 32px; }
 .seeds { font-size: 26px; }
 .job-name { font-size: 20px; }
 .prompt { bottom: 42%; }

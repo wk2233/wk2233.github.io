@@ -90,7 +90,10 @@ function applyFov() {
   camera.updateProjectionMatrix();
 }
 function resize() {
-  const w = window.innerWidth, h = window.innerHeight;
+  // visualViewport fixes mobile browser chrome / WeChat toolbar cropping the canvas
+  const vv = window.visualViewport;
+  const w = Math.max(1, Math.round(vv?.width || window.innerWidth || 0));
+  const h = Math.max(1, Math.round(vv?.height || window.innerHeight || 0));
   if (!w || !h) return;
   const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
   renderer.setPixelRatio(dpr);
@@ -98,9 +101,21 @@ function resize() {
   pipeline.setSize(w, h, dpr);
   camera.aspect = w / h;
   applyFov();
+  // keep fixed overlays aligned when the visual viewport shifts
+  const ox = Math.round(vv?.offsetLeft || 0);
+  const oy = Math.round(vv?.offsetTop || 0);
+  canvas.style.left = `${ox}px`;
+  canvas.style.top = `${oy}px`;
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
 }
 game.resize = resize;
 window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', resize);
+  window.visualViewport.addEventListener('scroll', resize);
+}
 
 function setLoad(frac, msg) {
   $('loadFill').style.width = `${Math.round(frac * 100)}%`;
@@ -228,10 +243,17 @@ async function boot() {
     if (desk) desk.hidden = true;
     if (touch) touch.hidden = false;
   }
-  $('start').addEventListener('click', start);
+  const onStart = (e) => {
+    e?.preventDefault?.();
+    start();
+  };
+  $('start').addEventListener('click', onStart);
+  // WeChat / iOS sometimes swallow the synthetic click after touch
+  $('start').addEventListener('touchend', onStart, { passive: false });
   if (params.has('debug')) $('title').classList.add('gone');
   if (params.has('play')) start();
   requestAnimationFrame(frame);
+  resize();
 }
 
 function start() {
@@ -252,10 +274,11 @@ function start() {
 let last = 0;
 // Adaptive resolution: if the machine cannot hold the frame rate, render fewer pixels rather than
 // drop frames; climb back when there is headroom. Steps are coarse and rare (each one reallocates).
-const SCALES = mobile ? [0.9, 0.78, 0.65, 0.52, 0.4] : [1, 0.85, 0.72, 0.6, 0.5];
+// phones: do not drop below ~0.68 — lower steps looked unplayably soft / stretched
+const SCALES = mobile ? [0.9, 0.78, 0.68] : [1, 0.85, 0.72, 0.6, 0.5];
 const auto = {
   i: mobile ? 1 : 0, // phones start at 0.78
-  acc: 0, n: 0, hold: mobile ? 1 : 3, good: 0,
+  acc: 0, n: 0, hold: mobile ? 2 : 3, good: 0,
   on: !params.has('noscale') && !params.has('debug'),
 };
 function autoScale(rawDt) {
@@ -560,5 +583,8 @@ game.shot = async (name = 'shot', w = 1920, h = 1080, steps = 2, dt = 1 / 60) =>
 
 boot().catch((e) => {
   console.error(e);
-  $('loadStatus').textContent = `failed to load: ${e.message}`;
+  const msg = e?.message || String(e);
+  $('loadStatus').textContent = `加载失败: ${msg}`;
+  const err = $('bootErr');
+  if (err) { err.style.display = 'block'; err.textContent = `加载失败: ${msg}`; }
 });
