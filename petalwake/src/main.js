@@ -117,8 +117,13 @@ if (window.visualViewport) {
   window.visualViewport.addEventListener('scroll', resize);
 }
 
+let loadFrac = 0;
 function setLoad(frac, msg) {
-  $('loadFill').style.width = `${Math.round(frac * 100)}%`;
+  // only advance — never bounce backwards (and never fight a CSS pulse animation)
+  loadFrac = Math.max(loadFrac, Math.min(1, frac));
+  const el = $('loadFill');
+  el.style.animation = 'none';
+  el.style.width = `${Math.round(loadFrac * 100)}%`;
   if (msg) $('loadStatus').textContent = msg;
 }
 const tick = () => new Promise((r) => setTimeout(r, 0));

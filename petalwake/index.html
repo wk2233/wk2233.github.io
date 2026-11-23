@@ -54,10 +54,9 @@
   <div class="title-inner">
     <p class="kicker">a broom, an island, a good wind</p>
     <h1>Petalwake</h1>
-    <div class="bar"><div class="bar-fill" id="loadFill" style="width:8%;animation:pw-load 1.2s ease-in-out infinite alternate"></div></div>
+    <div class="bar"><div class="bar-fill" id="loadFill" style="width:4%"></div></div>
     <p class="status" id="loadStatus">正在加载资源，请稍候…</p>
     <p id="bootErr" style="display:none;margin-top:14px;max-width:90vw;color:#ff9ec4;font-size:13px;line-height:1.45;word-break:break-word"></p>
-    <style>@keyframes pw-load{from{width:8%}to{width:42%}}</style>
     <script>
       window.addEventListener('error', function (e) {
         var el = document.getElementById('bootErr');
