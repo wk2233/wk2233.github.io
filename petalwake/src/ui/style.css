@@ -34,8 +34,26 @@ h1 {
   font-size: clamp(64px, 11vw, 168px); line-height: 0.95; letter-spacing: -0.02em;
   text-shadow: 0 2px 40px rgba(10, 30, 60, 0.45);
 }
-.bar { width: min(280px, 70vw); height: 6px; margin: 34px auto 12px; background: rgba(255, 255, 255, 0.22); overflow: hidden; border-radius: 6px; }
-.bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--petal), var(--gold)); transition: width 0.35s ease; min-width: 4%; }
+.bar {
+  width: min(280px, 70vw); height: 6px; margin: 34px auto 12px;
+  background: rgba(255, 255, 255, 0.22); overflow: hidden; border-radius: 6px;
+  position: relative;
+}
+.bar::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 248, 236, 0.28), transparent);
+  transform: translateX(-100%);
+  animation: pw-bar-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes pw-bar-shimmer {
+  to { transform: translateX(100%); }
+}
+#title:not(.loading) .bar::after { animation: none; opacity: 0; }
+.bar-fill {
+  position: relative; z-index: 1;
+  height: 100%; width: 0%; background: linear-gradient(90deg, var(--petal), var(--gold));
+  transition: width 0.2s linear; min-width: 4%;
+}
 .status { margin: 0; font-size: 14px; letter-spacing: 0.06em; opacity: 0.85; min-height: 1.4em; }
 #start {
   margin-top: 30px; padding: 15px 44px; font: 600 14px "Karla", sans-serif; letter-spacing: 0.3em; text-transform: uppercase;

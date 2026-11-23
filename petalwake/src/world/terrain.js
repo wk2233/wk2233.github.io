@@ -21,6 +21,33 @@ export async function loadImage(url) {
   return createImageBitmap(await res.blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
 }
 
+/** Read a fetch body as ArrayBuffer while reporting 0..1 progress (height.u16 is ~32MB). */
+export async function fetchArrayBufferProgress(url, onProgress) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+  const total = Number(res.headers.get('content-length')) || 0;
+  if (!res.body || !total || !res.body.getReader) {
+    const buf = await res.arrayBuffer();
+    onProgress?.(1, buf.byteLength, buf.byteLength);
+    return buf;
+  }
+  const reader = res.body.getReader();
+  const chunks = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.byteLength;
+    onProgress?.(Math.min(1, received / total), received, total);
+  }
+  const out = new Uint8Array(received);
+  let offset = 0;
+  for (const c of chunks) { out.set(c, offset); offset += c.byteLength; }
+  onProgress?.(1, received, total || received);
+  return out.buffer;
+}
+
 export function dataTex(img, { srgb = false, mips = true, aniso = 8, wrap = THREE.ClampToEdgeWrapping } = {}) {
   const t = new THREE.Texture(img);
   t.flipY = false;
@@ -112,15 +139,27 @@ export function makeNoiseTexture() {
 }
 
 export class Terrain {
-  static async load(renderer, base = './assets') {
+  /** @param onProgress optional (frac01) while the big island files download */
+  static async load(renderer, base = './assets', onProgress) {
     const meta = await (await fetch(`${base}/terrain/meta.json`)).json();
+    // height map dominates download time; weight progress so the bar keeps moving
+    const part = { height: 0, splat: 0, light: 0, tint: 0, mats: 0 };
+    const weight = { height: 0.62, splat: 0.12, light: 0.16, tint: 0.05, mats: 0.05 };
+    const report = () => {
+      if (!onProgress) return;
+      let f = 0;
+      for (const k of Object.keys(part)) f += part[k] * weight[k];
+      onProgress(Math.min(1, f));
+    };
+    const done = (key) => (v) => { part[key] = 1; report(); return v; };
     const [buf, splatImg, lightImg, tintImg, mats] = await Promise.all([
-      fetch(`${base}/terrain/height.u16`).then((r) => r.arrayBuffer()),
-      loadImage(`${base}/terrain/splat.png`),
-      loadImage(`${base}/terrain/light.png`),
-      loadImage(`${base}/terrain/tint.png`),
-      materialArrays(`${base}/textures`),
+      fetchArrayBufferProgress(`${base}/terrain/height.u16`, (p) => { part.height = p; report(); }),
+      loadImage(`${base}/terrain/splat.png`).then(done('splat')),
+      loadImage(`${base}/terrain/light.png`).then(done('light')),
+      loadImage(`${base}/terrain/tint.png`).then(done('tint')),
+      materialArrays(`${base}/textures`).then(done('mats')),
     ]);
+    onProgress?.(1);
     return new Terrain(renderer, meta, new Uint16Array(buf), splatImg, lightImg, tintImg, mats);
   }
 

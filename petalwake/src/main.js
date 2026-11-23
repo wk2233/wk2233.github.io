@@ -236,17 +236,21 @@ async function boot() {
   U.uTownMask0.value = blank;
   U.uTownMask1.value = blank;
 
-  setLoad(0.08, 'raising the island…');
+  setLoad(0.04, '正在下载岛屿数据…');
   const riderLoad = Rider.load(renderer).catch((e) => { console.error(e); throw e; });
   // props / towns are heavy; soft-fail so a dropped tunnel still lets you fly the island
   const propsLoad = Props.load().catch((e) => (console.warn('props skipped', e), null));
   const townLoad = Town.load(renderer).catch((e) => (console.warn('town skipped', e), null));
-  const terrain = (game.terrain = await Terrain.load(renderer));
+  // height.u16 ≈ 32MB — without per-byte progress the bar sits still for a long time
+  const terrain = (game.terrain = await Terrain.load(renderer, './assets', (p) => {
+    const pct = Math.round(p * 100);
+    setLoad(0.04 + 0.34 * p, `正在下载岛屿数据… ${pct}%`);
+  }));
   terrain.mainView.mesh.renderOrder = 500;
   world.add(terrain.mainView.mesh);
   await tick();
 
-  setLoad(0.4, 'sowing the meadows…');
+  setLoad(0.4, '正在铺设草地…');
   const meadowQ = params.get('q') || (QUALITY_PRESETS[game.quality]?.meadow || 'low');
   const meadow = (game.meadow = new Meadow(terrain, meadowQ));
   world.add(meadow.group);
@@ -256,7 +260,7 @@ async function boot() {
   const clouds = (game.clouds = new CloudBaker(renderer));
   clouds.begin();
   while (!clouds.done) {
-    setLoad(0.45 + 0.4 * clouds.step(2), 'painting the sky…');
+    setLoad(0.45 + 0.4 * clouds.step(2), '正在绘制天空…');
     await tick();
   }
   sky.cloudTex.value = clouds.texture;
@@ -278,7 +282,7 @@ async function boot() {
     if (props.overlay) pipeline.overlay.add(props.overlay);
   }
   // the towns: buildings, their landing pads, and what the broom bumps into
-  setLoad(0.72, 'building the towns…');
+  setLoad(0.72, '正在建造小镇…');
   let town = await townLoad;
   if (!town) town = new Town(renderer); // empty shell if the big .bin downloads failed
   game.town = town;
@@ -291,7 +295,7 @@ async function boot() {
     pipeline.overlay.add(places.overlay);
   }
 
-  setLoad(0.9, 'waking the broom…');
+  setLoad(0.9, '正在唤醒扫帚…');
   const rider = (game.rider = await riderLoad);
   pipeline.overlay.add(rider.group, rider.lights);
   pipeline.overlay.environment = sky.bakeEnvironment(renderer);
