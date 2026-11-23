@@ -83,19 +83,29 @@
         <div><kbd>P</kbd> hide HUD · <kbd>M</kbd> mute · <kbd>J</kbd> journal</div>
       </div>
       <div class="keys-touch" hidden>
-        <div>单摇杆：左右转向 · 上下俯仰</div>
-        <div>轻推前进巡航 · 推远加速 · 回中刹车</div>
+        <div>右摇杆：左右转向 · 前推加速 · 回中刹车</div>
+        <div>左键 <b>Climb</b> / <b>Dive</b>：爬升 · 俯冲</div>
         <div>回中两次 · 着陆交货</div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- 手机：仅一个方向摇杆（推远=加速，回中=刹车） -->
+<!-- 手机：左俯仰按钮 + 右方向摇杆（摇杆不改俯仰角） -->
 <div id="touch" hidden>
+  <div class="touch-pitch" aria-label="pitch">
+    <button type="button" id="touchClimb" class="touch-btn touch-climb">
+      <span class="touch-btn-glyph">▲</span>
+      <span class="touch-btn-label">Climb</span>
+    </button>
+    <button type="button" id="touchDive" class="touch-btn touch-dive">
+      <span class="touch-btn-glyph">▼</span>
+      <span class="touch-btn-label">Dive</span>
+    </button>
+  </div>
   <div id="touchStick" class="touch-stick" aria-label="steer">
     <div id="touchKnob" class="touch-knob"></div>
-    <div class="touch-hint">推远加速 · 回中刹车</div>
+    <div class="touch-hint">转向 · 前推加速</div>
   </div>
 </div>
 

@@ -110,14 +110,61 @@ kbd {
   position: fixed; inset: 0; z-index: 4; pointer-events: none;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
+.touch-pitch {
+  pointer-events: none;
+  position: absolute;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(40px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.touch-btn {
+  pointer-events: auto;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid rgba(255, 248, 236, 0.34);
+  background: rgba(255, 248, 236, 0.12);
+  color: #fff8ec;
+  width: min(78px, 22vw);
+  height: min(78px, 22vw);
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0;
+  margin: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow: inset 0 0 22px rgba(0, 20, 50, 0.22);
+}
+.touch-btn.active {
+  background: rgba(255, 211, 107, 0.28);
+  border-color: rgba(255, 211, 107, 0.72);
+}
+.touch-btn-glyph {
+  font: 600 18px/1 "Fraunces", Georgia, serif;
+  letter-spacing: 0;
+  opacity: 0.92;
+}
+.touch-btn-label {
+  font: 600 11px/1 "Karla", system-ui, sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
 .touch-stick {
   pointer-events: auto;
   position: absolute;
-  left: 50%;
+  right: max(18px, env(safe-area-inset-right));
   bottom: max(36px, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  width: min(168px, 42vw);
-  height: min(168px, 42vw);
+  left: auto;
+  transform: none;
+  width: min(156px, 38vw);
+  height: min(156px, 38vw);
   border-radius: 50%;
   background: rgba(255, 248, 236, 0.12);
   border: 1px solid rgba(255, 248, 236, 0.32);

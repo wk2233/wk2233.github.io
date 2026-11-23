@@ -1,9 +1,9 @@
-// Mobile-only: one on-screen stick. Keyboard / mouse / gamepad are off.
-// Stick: direction = bank / pitch (soft). Distance from centre = throttle:
+// Mobile-only touch flight. Keyboard / mouse / gamepad are off.
+// Right stick: bank (X) + throttle (Y). Does NOT change pitch attitude.
 //   centre  -> brake (Space)
-//   light   -> cruise
-//   far     -> boost (gust)
-// Releasing / returning to centre also taps brake (double-tap to land).
+//   light forward -> cruise
+//   far forward  -> boost (gust)
+// Left buttons: Climb / Dive (W / S) — only these change pitch.
 const DOUBLE_TAP = 320;
 
 const isTouchDevice = () =>
@@ -11,7 +11,6 @@ const isTouchDevice = () =>
   (('ontouchstart' in window) || (navigator.maxTouchPoints | 0) > 0);
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-// soft response so the stick is not twitchy
 const curve = (v, exp = 1.55) => Math.sign(v) * Math.pow(Math.abs(v), exp);
 
 export class Input {
@@ -27,6 +26,8 @@ export class Input {
     this.pressed = new Set();
     this.touchUI = true;
     this.touchStick = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
+    this.touchClimb = false;
+    this.touchDive = false;
     this._touchRoot = null;
     this._tap = -1e9;
     this._wasBrake = true;
@@ -51,7 +52,9 @@ export class Input {
     const root = document.getElementById('touch');
     const base = document.getElementById('touchStick');
     const knob = document.getElementById('touchKnob');
-    if (!root || !base || !knob) return;
+    const climbBtn = document.getElementById('touchClimb');
+    const diveBtn = document.getElementById('touchDive');
+    if (!root || !base || !knob || !climbBtn || !diveBtn) return;
 
     root.hidden = true;
     this._touchRoot = root;
@@ -74,7 +77,6 @@ export class Input {
       this.touchStick.y = 0;
       knob.style.transform = 'translate(0px, 0px)';
       base.classList.remove('active');
-      // release = ease up; second quick release lands
       this._tapBrake(performance.now());
     };
 
@@ -120,6 +122,39 @@ export class Input {
     base.addEventListener('mousedown', onStickStart);
     window.addEventListener('mousemove', onStickMove);
     window.addEventListener('mouseup', onStickEnd);
+
+    const bindHold = (el, on, off) => {
+      const down = (e) => {
+        if (!this.enabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        on();
+        el.classList.add('active');
+      };
+      const up = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        off();
+        el.classList.remove('active');
+      };
+      el.addEventListener('touchstart', down, { passive: false });
+      el.addEventListener('touchend', up, { passive: false });
+      el.addEventListener('touchcancel', up, { passive: false });
+      el.addEventListener('mousedown', down);
+      el.addEventListener('mouseup', up);
+      el.addEventListener('mouseleave', up);
+    };
+
+    bindHold(
+      climbBtn,
+      () => { this.touchClimb = true; },
+      () => { this.touchClimb = false; },
+    );
+    bindHold(
+      diveBtn,
+      () => { this.touchDive = true; },
+      () => { this.touchDive = false; },
+    );
   }
 
   setTouchVisible(on) {
@@ -142,39 +177,36 @@ export class Input {
   update(dt) {
     let turn = 0, pitch = 0, boost = false, brake = false;
 
+    // Pitch only from Climb / Dive buttons (soft, not twitchy)
+    const pitchGain = 0.42;
+    if (this.touchClimb) pitch += pitchGain;
+    if (this.touchDive) pitch -= pitchGain;
+    if (this.invert) pitch = -pitch;
+
     if (!this.touchStick.active) {
-      // finger up: ease up (Space held)
       brake = true;
     } else {
       const sx = this.touchStick.x;
       const sy = this.touchStick.y; // +down on screen, -up (forward)
       const mag = Math.hypot(sx, sy);
-      const forward = clamp(-sy, 0, 1); // push toward top of screen
+      const forward = clamp(-sy, 0, 1);
 
-      // centre zone = brake
       if (mag < 0.16) {
         brake = true;
         turn = 0;
-        pitch = 0;
       } else {
-        // direction: soft curve + low gain (not too sensitive)
+        // Stick steers heading only — never changes climb/dive attitude
         turn = curve(sx) * 0.48;
-        pitch = curve(-sy) * 0.36;
-        if (this.invert) pitch = -pitch;
 
-        // throttle from how far you push "forward" (and overall throw)
-        // light forward / side = cruise; strong forward = gust
         if (forward >= 0.70 && mag >= 0.62) boost = true;
         else boost = false;
         brake = false;
       }
     }
 
-    // edge into brake zone counts as a Space tap (for double-tap land)
     if (brake && !this._wasBrake) this._tapBrake(performance.now());
     this._wasBrake = brake;
 
-    // light smoothing so the broom does not twitch
     const k = 1 - Math.exp(-(brake ? 10 : 7) * dt);
     this._smTurn += (turn - this._smTurn) * k;
     this._smPitch += (pitch - this._smPitch) * k;
@@ -189,6 +221,8 @@ export class Input {
       this.pitch = 0;
       this.boost = false;
       this.brake = false;
+      this.touchClimb = false;
+      this.touchDive = false;
       this._smTurn = 0;
       this._smPitch = 0;
     }
