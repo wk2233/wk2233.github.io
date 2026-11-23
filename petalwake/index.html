@@ -90,6 +90,20 @@
   </div>
 </div>
 
+<button type="button" id="settingsBtn" class="settings-btn" hidden>设置</button>
+<div id="settingsPanel" class="settings-panel" hidden>
+  <div class="settings-card">
+    <div class="settings-title">画质</div>
+    <div class="settings-options" role="group" aria-label="画质">
+      <button type="button" class="settings-opt" data-quality="low">低画质</button>
+      <button type="button" class="settings-opt" data-quality="medium">中画质</button>
+      <button type="button" class="settings-opt" data-quality="high">高画质</button>
+    </div>
+    <p class="settings-note">手机可自选；越高越清晰，也可能更卡</p>
+    <button type="button" id="settingsClose" class="settings-close">关闭</button>
+  </div>
+</div>
+
 <!-- 手机：单摇杆（方向=姿态，半径=油门） -->
 <div id="touch" hidden>
   <div id="touchStick" class="touch-stick" aria-label="steer">

@@ -67,21 +67,112 @@ const game = {
   renderer, camera, world, pipeline, U, World,
   time: 0, paused: false, ready: false, state: 'title', fov: 64,
   mobile,
+  quality: 'medium',
+  wantReflection: false,
 };
 window.PW = game;
 
-// phones: cap at 1x pixels; desktop keeps 1.5. ?dpr= overrides.
-let maxDpr = Number(params.get('dpr')) || (mobile ? 1.25 : 1.5);
-if (mobile) {
-  // no MSAA / reflection / motion blur; sharper base scale than the first phone pass
-  pipeline.samples = 0;
-  pipeline.lite = true;
-  pipeline.scale = 0.78;
-  Object.assign(pipeline.params, {
-    blur: 0, bloom: 0.05, rays: 0, distortion: 0, fringe: 0, vignette: 0.2,
-  });
-  renderer.shadowMap.enabled = false;
+// User-selectable graphics. URL ?dpr= still caps pixel ratio on top.
+const QUALITY_PRESETS = {
+  low: {
+    label: '低画质',
+    maxDpr: 1,
+    scale: 0.68,
+    scales: [0.78, 0.68, 0.58],
+    scaleIndex: 1,
+    samples: 0,
+    lite: true,
+    meadow: 'mobile',
+    reflection: false,
+    shadows: false,
+    params: { blur: 0, bloom: 0.04, rays: 0, distortion: 0, fringe: 0, vignette: 0.22 },
+  },
+  medium: {
+    label: '中画质',
+    maxDpr: 1.35,
+    scale: 0.85,
+    scales: [0.95, 0.85, 0.72],
+    scaleIndex: 1,
+    samples: 0,
+    lite: true,
+    meadow: 'low',
+    reflection: false,
+    shadows: false,
+    params: { blur: 0, bloom: 0.06, rays: 0, distortion: 0, fringe: 0, vignette: 0.22 },
+  },
+  high: {
+    label: '高画质',
+    maxDpr: 2,
+    scale: 1,
+    scales: [1, 0.9, 0.8],
+    scaleIndex: 0,
+    samples: 0,
+    lite: false,
+    meadow: 'medium',
+    reflection: true,
+    shadows: false,
+    params: { blur: 0, bloom: 0.085, rays: 0.35, distortion: 0.06, fringe: 0.001, vignette: 0.24 },
+  },
+};
+
+function readStoredQuality() {
+  const fromUrl = params.get('quality');
+  if (fromUrl && QUALITY_PRESETS[fromUrl]) return fromUrl;
+  try {
+    const s = localStorage.getItem('pw-quality');
+    if (s && QUALITY_PRESETS[s]) return s;
+  } catch { /* private mode */ }
+  return mobile ? 'medium' : 'high';
 }
+
+let maxDpr = 1.35;
+let SCALES = QUALITY_PRESETS.medium.scales.slice();
+const auto = {
+  i: 1, acc: 0, n: 0, hold: 2, good: 0,
+  on: !params.has('noscale') && !params.has('debug'),
+};
+
+function applyQuality(name, { resizeNow = true, toastMsg = false } = {}) {
+  const preset = QUALITY_PRESETS[name] || QUALITY_PRESETS.medium;
+  game.quality = name in QUALITY_PRESETS ? name : 'medium';
+  try { localStorage.setItem('pw-quality', game.quality); } catch { /* ignore */ }
+
+  const urlDpr = Number(params.get('dpr'));
+  maxDpr = Number.isFinite(urlDpr) && urlDpr > 0 ? urlDpr : preset.maxDpr;
+  pipeline.samples = preset.samples;
+  pipeline.lite = preset.lite;
+  pipeline.scale = preset.scale;
+  Object.assign(pipeline.params, preset.params);
+  renderer.shadowMap.enabled = !!preset.shadows;
+  game.wantReflection = !!preset.reflection;
+
+  SCALES = preset.scales.slice();
+  auto.i = Math.min(preset.scaleIndex, SCALES.length - 1);
+  auto.hold = 2;
+  auto.good = 0;
+  auto.acc = 0;
+  auto.n = 0;
+  pipeline.scale = SCALES[auto.i];
+
+  if (game.meadow) {
+    const meadowQ = params.get('q') || preset.meadow;
+    if (game.meadow.quality !== meadowQ) game.meadow.setQuality(meadowQ);
+  }
+  if (preset.reflection && game.water && game.terrain && !game.water.reflRT) {
+    try { game.water.setupReflection(renderer, game.terrain); } catch (e) { console.warn(e); }
+  }
+  if (!preset.reflection && game.water?.reflOn) game.water.reflOn.value = 0;
+
+  document.querySelectorAll('.settings-opt').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.quality === game.quality);
+  });
+
+  if (resizeNow) resize();
+  if (toastMsg) toast(`${preset.label} · 已应用`);
+}
+
+// apply before first resize targets are built
+applyQuality(readStoredQuality(), { resizeNow: false });
 function applyFov() {
   // hold the horizontal field of view on very wide screens instead of letting it balloon
   const baseV = game.fov, hLimit = 122;
@@ -145,9 +236,6 @@ async function boot() {
   U.uTownMask0.value = blank;
   U.uTownMask1.value = blank;
 
-  // phones: mobile meadow tier unless ?q= is set
-  const quality = params.get('q') || (mobile ? 'mobile' : 'high');
-
   setLoad(0.08, 'raising the island…');
   const riderLoad = Rider.load(renderer).catch((e) => { console.error(e); throw e; });
   // props / towns are heavy; soft-fail so a dropped tunnel still lets you fly the island
@@ -159,7 +247,8 @@ async function boot() {
   await tick();
 
   setLoad(0.4, 'sowing the meadows…');
-  const meadow = (game.meadow = new Meadow(terrain, quality));
+  const meadowQ = params.get('q') || (QUALITY_PRESETS[game.quality]?.meadow || 'low');
+  const meadow = (game.meadow = new Meadow(terrain, meadowQ));
   world.add(meadow.group);
 
   const sky = (game.sky = new Sky());
@@ -174,8 +263,10 @@ async function boot() {
   sky.cloudOn.value = 1;
 
   const water = (game.water = new Water(sky));
-  // planar water reflection = a second terrain pass every frame; skip on phones
-  if (!mobile) water.setupReflection(renderer, terrain);
+  // planar reflection is expensive; only when the chosen quality asks for it
+  if (game.wantReflection) {
+    try { water.setupReflection(renderer, terrain); } catch (e) { console.warn(e); }
+  }
   world.add(water.mesh);
   const river = (game.river = new River(terrain, terrain.meta, sky));
   world.add(river.group);
@@ -255,10 +346,46 @@ async function boot() {
   $('start').addEventListener('click', onStart);
   // WeChat / iOS sometimes swallow the synthetic click after touch
   $('start').addEventListener('touchend', onStart, { passive: false });
+  bindSettingsUI();
+  $('settingsBtn').hidden = false;
   if (params.has('debug')) $('title').classList.add('gone');
   if (params.has('play')) start();
   requestAnimationFrame(frame);
   resize();
+}
+
+function bindSettingsUI() {
+  const btn = $('settingsBtn');
+  const panel = $('settingsPanel');
+  const close = $('settingsClose');
+  if (!btn || !panel) return;
+  const open = (e) => {
+    e?.preventDefault?.();
+    panel.hidden = false;
+    document.querySelectorAll('.settings-opt').forEach((el) => {
+      el.classList.toggle('active', el.dataset.quality === game.quality);
+    });
+  };
+  const hide = (e) => {
+    e?.preventDefault?.();
+    panel.hidden = true;
+  };
+  btn.addEventListener('click', open);
+  btn.addEventListener('touchend', open, { passive: false });
+  close?.addEventListener('click', hide);
+  close?.addEventListener('touchend', hide, { passive: false });
+  panel.addEventListener('click', (e) => {
+    if (e.target === panel) hide(e);
+  });
+  panel.querySelectorAll('.settings-opt').forEach((el) => {
+    const pick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      applyQuality(el.dataset.quality, { toastMsg: true });
+    };
+    el.addEventListener('click', pick);
+    el.addEventListener('touchend', pick, { passive: false });
+  });
 }
 
 function start() {
@@ -277,15 +404,7 @@ function start() {
 
 // ---------------------------------------------------------------------------------- loop
 let last = 0;
-// Adaptive resolution: if the machine cannot hold the frame rate, render fewer pixels rather than
-// drop frames; climb back when there is headroom. Steps are coarse and rare (each one reallocates).
-// phones: do not drop below ~0.68 — lower steps looked unplayably soft / stretched
-const SCALES = mobile ? [0.9, 0.78, 0.68] : [1, 0.85, 0.72, 0.6, 0.5];
-const auto = {
-  i: mobile ? 1 : 0, // phones start at 0.78
-  acc: 0, n: 0, hold: mobile ? 2 : 3, good: 0,
-  on: !params.has('noscale') && !params.has('debug'),
-};
+// Adaptive resolution within the selected quality ladder.
 function autoScale(rawDt) {
   if (!auto.on || rawDt > 0.25) return;          // ignore hitches (tab switches, loading)
   auto.acc += rawDt; auto.n++;
@@ -427,7 +546,8 @@ function render(dt) {
   camera.updateMatrixWorld();
   U.uCamPos.value.copy(camera.position);
   game.rider.renderShadow(pipeline.reversed);
-  game.water.renderReflection(camera, pipeline.size);
+  if (game.wantReflection) game.water.renderReflection(camera, pipeline.size);
+  else if (game.water?.reflOn) game.water.reflOn.value = 0;
   game.terrain.select(game.terrain.mainView, camera);
   game.meadow.update(camera);
   game.town.update(dt, U.uTime.value, camera);
