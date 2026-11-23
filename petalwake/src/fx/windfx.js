@@ -31,9 +31,11 @@ export class WindFX {
   constructor(terrain, noise, depthUniform) {
     this.terrain = terrain;
     this.noise = noise;
-    this.flakes = new Flakes(12000);
-    this.sprites = new Sprites(depthUniform, 7000);
-    this.ribbons = [new Ribbon(44, 0.7), new Ribbon(44, 0.7)];
+    const lite = !!(typeof window !== 'undefined' && window.PW && window.PW.mobile);
+    this.rate = lite ? 0.35 : 1;
+    this.flakes = new Flakes(lite ? 3500 : 12000);
+    this.sprites = new Sprites(depthUniform, lite ? 2200 : 7000);
+    this.ribbons = [new Ribbon(lite ? 24 : 44, 0.7), new Ribbon(lite ? 24 : 44, 0.7)];
     this.group = new THREE.Group();
     this.group.add(this.flakes.mesh, this.sprites.mesh, this.ribbons[0].mesh, this.ribbons[1].mesh);
     this.acc = new Float32Array(32);
@@ -106,6 +108,7 @@ export class WindFX {
   /** Share of the flowers at a point that still have petals to lose. */
   _petalsLeft(x, z) { return this.strip ? 1 - this.strip.at(x, z) : 1; }
   _count(i, rate, dt) {
+    rate *= this.rate || 1;
     this.acc[i] += rate * dt;
     const n = this.acc[i] | 0;
     this.acc[i] -= n;

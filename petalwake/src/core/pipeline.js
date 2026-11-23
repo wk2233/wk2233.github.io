@@ -21,6 +21,8 @@ export class Pipeline {
     this.renderer = renderer;
     this.reversed = renderer.capabilities.reversedDepthBuffer === true;
     this.scale = 1;
+    this.samples = 4;   // MSAA; set 0 on phones
+    this.lite = false;  // fewer bloom mips / skip god-rays path cost when params.rays=0
     this.quad = new THREE.Mesh(tri, null);
     this.quad.frustumCulled = false;
     this.quadScene = new THREE.Scene();
@@ -93,18 +95,20 @@ export class Pipeline {
     this.dispose();
     const depth = new THREE.DepthTexture(W, H, THREE.FloatType);
     depth.format = THREE.DepthFormat;
+    const samples = this.samples | 0;
     this.sceneRT = new THREE.WebGLRenderTarget(W, H, {
-      type: THREE.HalfFloatType, format: THREE.RGBAFormat, samples: 4, depthBuffer: true, depthTexture: depth,
+      type: THREE.HalfFloatType, format: THREE.RGBAFormat, samples, depthBuffer: true, depthTexture: depth,
       minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false,
     });
     // second target: blurred world + sharp rider/particles (own depth buffer for the rider's self-occlusion)
     this.compRT = new THREE.WebGLRenderTarget(W, H, {
-      type: THREE.HalfFloatType, format: THREE.RGBAFormat, samples: 4, depthBuffer: true,
+      type: THREE.HalfFloatType, format: THREE.RGBAFormat, samples, depthBuffer: true,
       minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false,
     });
     this.bloom = [];
     let bw = W >> 1, bh = H >> 1;
-    for (let i = 0; i < 7 && bw > 4 && bh > 4; i++) {
+    const bloomLevels = this.lite ? 4 : 7;
+    for (let i = 0; i < bloomLevels && bw > 4 && bh > 4; i++) {
       this.bloom.push(new THREE.WebGLRenderTarget(bw, bh, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter }));
       bw >>= 1; bh >>= 1;
     }
@@ -163,15 +167,17 @@ export class Pipeline {
       src = rt.texture;
     }
 
-    // 5. god rays from the sun's screen position
-    const sun = this._sun || (this._sun = new THREE.Vector3());
-    sun.copy(U.uSunDir.value).multiplyScalar(1e5).add(camera.position).project(camera);
-    const camDir = camera.getWorldDirection(this._cd || (this._cd = new THREE.Vector3()));
-    const facing = camDir.dot(U.uSunDir.value);
-    this.raysMat.uniforms.tColor.value = this.compRT.texture;
-    this.raysMat.uniforms.uSun.value.set(sun.x * 0.5 + 0.5, sun.y * 0.5 + 0.5, Math.max(0, (facing - 0.15) / 0.85));
-    this.raysMat.uniforms.uAspect.value = this.size.x / this.size.y;
-    this._blit(this.raysMat, this.raysRT);
+    // 5. god rays from the sun's screen position (skipped on lite / rays=0)
+    if (p.rays > 0.001 && this.raysRT) {
+      const sun = this._sun || (this._sun = new THREE.Vector3());
+      sun.copy(U.uSunDir.value).multiplyScalar(1e5).add(camera.position).project(camera);
+      const camDir = camera.getWorldDirection(this._cd || (this._cd = new THREE.Vector3()));
+      const facing = camDir.dot(U.uSunDir.value);
+      this.raysMat.uniforms.tColor.value = this.compRT.texture;
+      this.raysMat.uniforms.uSun.value.set(sun.x * 0.5 + 0.5, sun.y * 0.5 + 0.5, Math.max(0, (facing - 0.15) / 0.85));
+      this.raysMat.uniforms.uAspect.value = this.size.x / this.size.y;
+      this._blit(this.raysMat, this.raysRT);
+    }
 
     // 6. lens + grade
     const f = this.finalMat.uniforms;

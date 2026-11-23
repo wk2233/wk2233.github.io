@@ -62,14 +62,26 @@ const world = new THREE.Scene();
 const pipeline = new Pipeline(renderer);
 // without a reversed depth buffer (no EXT_clip_control) pull the planes in to keep distant water stable
 if (!pipeline.reversed) { camera.near = 1.2; camera.far = 40000; camera.updateProjectionMatrix(); }
+const mobile = isTouchDevice() || params.has('mobile');
 const game = {
   renderer, camera, world, pipeline, U, World,
   time: 0, paused: false, ready: false, state: 'title', fov: 64,
+  mobile,
 };
 window.PW = game;
 
-// slightly lower default DPR on phones; original auto-scale still applies; ?dpr= overrides
-let maxDpr = Number(params.get('dpr')) || (isTouchDevice() ? 1.25 : 1.5);
+// phones: cap at 1x pixels; desktop keeps 1.5. ?dpr= overrides.
+let maxDpr = Number(params.get('dpr')) || (mobile ? 1 : 1.5);
+if (mobile) {
+  // drop the expensive post stack; resolution starts low and can fall further
+  pipeline.samples = 0;
+  pipeline.lite = true;
+  pipeline.scale = 0.55;
+  Object.assign(pipeline.params, {
+    blur: 0, bloom: 0.03, rays: 0, distortion: 0, fringe: 0, vignette: 0.18,
+  });
+  renderer.shadowMap.enabled = false;
+}
 function applyFov() {
   // hold the horizontal field of view on very wide screens instead of letting it balloon
   const baseV = game.fov, hLimit = 122;
@@ -113,8 +125,8 @@ async function boot() {
   U.uTownMask0.value = blank;
   U.uTownMask1.value = blank;
 
-  // phones / tunnels: default lower meadow density unless ?q= is set
-  const quality = params.get('q') || (isTouchDevice() ? 'low' : 'high');
+  // phones: mobile meadow tier unless ?q= is set
+  const quality = params.get('q') || (mobile ? 'mobile' : 'high');
 
   setLoad(0.08, 'raising the island…');
   const riderLoad = Rider.load(renderer).catch((e) => { console.error(e); throw e; });
@@ -142,7 +154,8 @@ async function boot() {
   sky.cloudOn.value = 1;
 
   const water = (game.water = new Water(sky));
-  water.setupReflection(renderer, terrain);
+  // planar water reflection = a second terrain pass every frame; skip on phones
+  if (!mobile) water.setupReflection(renderer, terrain);
   world.add(water.mesh);
   const river = (game.river = new River(terrain, terrain.meta, sky));
   world.add(river.group);
@@ -239,21 +252,27 @@ function start() {
 let last = 0;
 // Adaptive resolution: if the machine cannot hold the frame rate, render fewer pixels rather than
 // drop frames; climb back when there is headroom. Steps are coarse and rare (each one reallocates).
-const SCALES = [1, 0.85, 0.72, 0.6, 0.5];
-const auto = { i: 0, acc: 0, n: 0, hold: 3, good: 0, on: !params.has('noscale') && !params.has('debug') };
+const SCALES = mobile ? [0.7, 0.55, 0.42, 0.32, 0.25] : [1, 0.85, 0.72, 0.6, 0.5];
+const auto = {
+  i: mobile ? 1 : 0, // phones start mid-ladder (matches pipeline.scale 0.55)
+  acc: 0, n: 0, hold: mobile ? 1 : 3, good: 0,
+  on: !params.has('noscale') && !params.has('debug'),
+};
 function autoScale(rawDt) {
   if (!auto.on || rawDt > 0.25) return;          // ignore hitches (tab switches, loading)
   auto.acc += rawDt; auto.n++;
-  if (auto.acc < 1.5) return;
+  if (auto.acc < (mobile ? 0.8 : 1.5)) return;
   const avg = auto.acc / auto.n;
   auto.acc = 0; auto.n = 0;
   if (auto.hold > 0) { auto.hold--; return; }
   let next = auto.i;
-  if (avg > 1 / 48 && auto.i < SCALES.length - 1) next++;
-  else if (avg < 1 / 58 && auto.i > 0 && auto.good++ > 4) next--;
-  if (avg >= 1 / 58) auto.good = 0;
+  const slow = mobile ? 1 / 40 : 1 / 48;
+  const fast = mobile ? 1 / 52 : 1 / 58;
+  if (avg > slow && auto.i < SCALES.length - 1) next++;
+  else if (avg < fast && auto.i > 0 && auto.good++ > (mobile ? 2 : 4)) next--;
+  if (avg >= fast) auto.good = 0;
   if (next !== auto.i) {
-    auto.i = next; auto.hold = 2; auto.good = 0;
+    auto.i = next; auto.hold = mobile ? 1 : 2; auto.good = 0;
     pipeline.scale = SCALES[next];
     resize();
   }

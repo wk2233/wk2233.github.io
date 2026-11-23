@@ -18,6 +18,8 @@ export const QUALITY = {
   high: { grass: 1.0, flowers: 1.0 },
   medium: { grass: 0.6, flowers: 0.7 },
   low: { grass: 0.33, flowers: 0.45 },
+  // phones: keep the meadow colour but cut instancing hard
+  mobile: { grass: 0.12, flowers: 0.16 },
 };
 
 function grassShells(q) {
