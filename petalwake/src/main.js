@@ -71,14 +71,14 @@ const game = {
 window.PW = game;
 
 // phones: cap at 1x pixels; desktop keeps 1.5. ?dpr= overrides.
-let maxDpr = Number(params.get('dpr')) || (mobile ? 1 : 1.5);
+let maxDpr = Number(params.get('dpr')) || (mobile ? 1.25 : 1.5);
 if (mobile) {
-  // drop the expensive post stack; resolution starts low and can fall further
+  // no MSAA / reflection / motion blur; sharper base scale than the first phone pass
   pipeline.samples = 0;
   pipeline.lite = true;
-  pipeline.scale = 0.55;
+  pipeline.scale = 0.78;
   Object.assign(pipeline.params, {
-    blur: 0, bloom: 0.03, rays: 0, distortion: 0, fringe: 0, vignette: 0.18,
+    blur: 0, bloom: 0.05, rays: 0, distortion: 0, fringe: 0, vignette: 0.2,
   });
   renderer.shadowMap.enabled = false;
 }
@@ -252,9 +252,9 @@ function start() {
 let last = 0;
 // Adaptive resolution: if the machine cannot hold the frame rate, render fewer pixels rather than
 // drop frames; climb back when there is headroom. Steps are coarse and rare (each one reallocates).
-const SCALES = mobile ? [0.7, 0.55, 0.42, 0.32, 0.25] : [1, 0.85, 0.72, 0.6, 0.5];
+const SCALES = mobile ? [0.9, 0.78, 0.65, 0.52, 0.4] : [1, 0.85, 0.72, 0.6, 0.5];
 const auto = {
-  i: mobile ? 1 : 0, // phones start mid-ladder (matches pipeline.scale 0.55)
+  i: mobile ? 1 : 0, // phones start at 0.78
   acc: 0, n: 0, hold: mobile ? 1 : 3, good: 0,
   on: !params.has('noscale') && !params.has('debug'),
 };

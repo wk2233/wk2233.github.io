@@ -1,30 +1,38 @@
-// Mobile-only input: on-screen stick + boost/brake. Keyboard / mouse / gamepad are off.
-// Brake doubles as land: two taps inside DOUBLE_TAP ms posts 'Space2' (see game/index.js).
-const DOUBLE_TAP = 300;
+// Mobile-only: one on-screen stick. Keyboard / mouse / gamepad are off.
+// Stick: direction = bank / pitch (soft). Distance from centre = throttle:
+//   centre  -> brake (Space)
+//   light   -> cruise
+//   far     -> boost (gust)
+// Releasing / returning to centre also taps brake (double-tap to land).
+const DOUBLE_TAP = 320;
 
 const isTouchDevice = () =>
   (typeof window !== 'undefined') &&
   (('ontouchstart' in window) || (navigator.maxTouchPoints | 0) > 0);
 
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+// soft response so the stick is not twitchy
+const curve = (v, exp = 1.55) => Math.sign(v) * Math.pow(Math.abs(v), exp);
+
 export class Input {
   constructor(canvas) {
     this.canvas = canvas;
-    this.turn = 0;     // -1 left .. +1 right
-    this.pitch = 0;    // -1 dive .. +1 climb
+    this.turn = 0;
+    this.pitch = 0;
     this.boost = false;
     this.brake = false;
     this.invert = false;
     this.locked = false;
     this.enabled = false;
     this.pressed = new Set();
-    this.touchUI = true; // always on-screen controls
+    this.touchUI = true;
     this.touchStick = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
-    this.touchBoost = false;
-    this.touchBrake = false;
     this._touchRoot = null;
     this._tap = -1e9;
+    this._wasBrake = true;
+    this._smTurn = 0;
+    this._smPitch = 0;
 
-    // block browser scrolling / context menu while playing; no flight keys
     window.addEventListener('keydown', (e) => {
       if (!this.enabled) return;
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'ShiftRight'].includes(e.code)) {
@@ -32,8 +40,7 @@ export class Input {
       }
     }, { capture: true });
     window.addEventListener('contextmenu', (e) => { if (this.enabled) e.preventDefault(); });
-    // never pointer-lock the canvas
-    canvas.addEventListener('click', (e) => {
+    canvas.addEventListener('click', () => {
       if (document.pointerLockElement) document.exitPointerLock?.();
     });
 
@@ -44,14 +51,12 @@ export class Input {
     const root = document.getElementById('touch');
     const base = document.getElementById('touchStick');
     const knob = document.getElementById('touchKnob');
-    const boost = document.getElementById('touchBoost');
-    const brake = document.getElementById('touchBrake');
     if (!root || !base || !knob) return;
 
     root.hidden = true;
     this._touchRoot = root;
 
-    const radius = () => Math.max(28, (base.getBoundingClientRect().width || 120) * 0.5);
+    const radius = () => Math.max(36, (base.getBoundingClientRect().width || 140) * 0.5);
 
     const setKnob = (dx, dy) => {
       const r = radius();
@@ -69,6 +74,8 @@ export class Input {
       this.touchStick.y = 0;
       knob.style.transform = 'translate(0px, 0px)';
       base.classList.remove('active');
+      // release = ease up; second quick release lands
+      this._tapBrake(performance.now());
     };
 
     const pointerId = (t) => (t.identifier != null ? t.identifier : (t.pointerId != null ? t.pointerId : 'mouse'));
@@ -113,34 +120,6 @@ export class Input {
     base.addEventListener('mousedown', onStickStart);
     window.addEventListener('mousemove', onStickMove);
     window.addEventListener('mouseup', onStickEnd);
-
-    const bindBtn = (el, setDown, onTap) => {
-      if (!el) return;
-      const down = (e) => {
-        if (!this.enabled) return;
-        e.preventDefault();
-        e.stopPropagation();
-        setDown(true);
-        el.classList.add('active');
-        onTap?.(e.timeStamp || performance.now());
-      };
-      const up = (e) => {
-        e.preventDefault();
-        setDown(false);
-        el.classList.remove('active');
-      };
-      el.addEventListener('touchstart', down, { passive: false });
-      el.addEventListener('touchend', up, { passive: false });
-      el.addEventListener('touchcancel', up, { passive: false });
-      el.addEventListener('mousedown', down);
-      window.addEventListener('mouseup', up);
-    };
-
-    bindBtn(boost, (v) => { this.touchBoost = v; });
-    bindBtn(brake, (v) => { this.touchBrake = v; }, (t) => {
-      this.pressed.add('Space');
-      this._tapBrake(t);
-    });
   }
 
   setTouchVisible(on) {
@@ -150,7 +129,9 @@ export class Input {
   }
 
   _tapBrake(t) {
-    if (t - this._tap < DOUBLE_TAP) { this.pressed.add('Space2'); this._tap = -1e9; } else this._tap = t;
+    if (t - this._tap < DOUBLE_TAP) { this.pressed.add('Space2'); this._tap = -1e9; }
+    else this._tap = t;
+    this.pressed.add('Space');
   }
 
   take(code) {
@@ -159,21 +140,57 @@ export class Input {
   }
 
   update(dt) {
-    let x = 0, y = 0;
-    if (this.touchStick.active) {
-      x = this.touchStick.x;
-      y = -this.touchStick.y; // up on pad = climb
+    let turn = 0, pitch = 0, boost = false, brake = false;
+
+    if (!this.touchStick.active) {
+      // finger up: ease up (Space held)
+      brake = true;
+    } else {
+      const sx = this.touchStick.x;
+      const sy = this.touchStick.y; // +down on screen, -up (forward)
+      const mag = Math.hypot(sx, sy);
+      const forward = clamp(-sy, 0, 1); // push toward top of screen
+
+      // centre zone = brake
+      if (mag < 0.16) {
+        brake = true;
+        turn = 0;
+        pitch = 0;
+      } else {
+        // direction: soft curve + low gain (not too sensitive)
+        turn = curve(sx) * 0.48;
+        pitch = curve(-sy) * 0.36;
+        if (this.invert) pitch = -pitch;
+
+        // throttle from how far you push "forward" (and overall throw)
+        // light forward / side = cruise; strong forward = gust
+        if (forward >= 0.70 && mag >= 0.62) boost = true;
+        else boost = false;
+        brake = false;
+      }
     }
-    if (this.invert) y = -y;
-    this.turn = Math.max(-1, Math.min(1, x));
-    this.pitch = Math.max(-1, Math.min(1, y));
-    this.boost = !!this.touchBoost;
-    this.brake = !!this.touchBrake;
+
+    // edge into brake zone counts as a Space tap (for double-tap land)
+    if (brake && !this._wasBrake) this._tapBrake(performance.now());
+    this._wasBrake = brake;
+
+    // light smoothing so the broom does not twitch
+    const k = 1 - Math.exp(-(brake ? 10 : 7) * dt);
+    this._smTurn += (turn - this._smTurn) * k;
+    this._smPitch += (pitch - this._smPitch) * k;
+
+    this.turn = clamp(this._smTurn, -1, 1);
+    this.pitch = clamp(this._smPitch, -1, 1);
+    this.boost = boost;
+    this.brake = brake;
+
     if (!this.enabled) {
       this.turn = 0;
       this.pitch = 0;
       this.boost = false;
       this.brake = false;
+      this._smTurn = 0;
+      this._smPitch = 0;
     }
   }
 }

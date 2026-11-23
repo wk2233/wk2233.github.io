@@ -113,54 +113,40 @@ kbd {
 .touch-stick {
   pointer-events: auto;
   position: absolute;
-  left: max(18px, env(safe-area-inset-left));
-  bottom: max(28px, env(safe-area-inset-bottom));
-  width: min(132px, 34vw);
-  height: min(132px, 34vw);
+  left: 50%;
+  bottom: max(36px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(168px, 42vw);
+  height: min(168px, 42vw);
   border-radius: 50%;
-  background: rgba(255, 248, 236, 0.10);
-  border: 1px solid rgba(255, 248, 236, 0.28);
-  box-shadow: inset 0 0 24px rgba(0, 20, 50, 0.25);
+  background: rgba(255, 248, 236, 0.12);
+  border: 1px solid rgba(255, 248, 236, 0.32);
+  box-shadow: inset 0 0 28px rgba(0, 20, 50, 0.28);
   touch-action: none;
 }
-.touch-stick.active { background: rgba(255, 248, 236, 0.16); border-color: rgba(255, 211, 107, 0.55); }
+.touch-stick.active { background: rgba(255, 248, 236, 0.18); border-color: rgba(255, 211, 107, 0.6); }
 .touch-knob {
   position: absolute; left: 50%; top: 50%;
-  width: 42%; height: 42%;
-  margin: -21% 0 0 -21%;
+  width: 40%; height: 40%;
+  margin: -20% 0 0 -20%;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #fff8ec, rgba(255, 158, 196, 0.85));
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
   transform: translate(0, 0);
   will-change: transform;
 }
-.touch-btn {
-  pointer-events: auto;
+.touch-hint {
   position: absolute;
-  right: max(18px, env(safe-area-inset-right));
-  width: min(78px, 20vw);
-  height: min(78px, 20vw);
-  border-radius: 50%;
-  border: 1px solid rgba(255, 248, 236, 0.35);
-  color: #2a1730;
-  font: 600 13px/1 "Karla", system-ui, sans-serif;
-  letter-spacing: 0.12em;
-  touch-action: none;
-  -webkit-appearance: none;
-  appearance: none;
-  cursor: pointer;
+  left: 50%;
+  bottom: -22px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font: 500 10px/1 "Karla", system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  color: rgba(255, 248, 236, 0.7);
+  pointer-events: none;
+  text-shadow: 0 1px 8px rgba(0, 20, 50, 0.6);
 }
-.touch-boost {
-  bottom: calc(max(28px, env(safe-area-inset-bottom)) + min(92px, 24vw));
-  background: linear-gradient(180deg, #fff3e2, #ffd9e6);
-  box-shadow: 0 8px 28px rgba(255, 150, 200, 0.35);
-}
-.touch-brake {
-  bottom: max(28px, env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, rgba(255, 248, 236, 0.92), rgba(255, 211, 107, 0.85));
-  box-shadow: 0 8px 24px rgba(255, 211, 107, 0.28);
-}
-.touch-btn.active { transform: scale(0.94); filter: brightness(1.08); }
 
 .keys-touch { display: none; flex-direction: column; gap: 8px; align-items: center; }
 .keys-touch b { font-weight: 600; color: var(--gold); }
@@ -171,13 +157,13 @@ kbd {
 h1 { font-size: clamp(48px, 16vw, 96px); }
 .hud-tl { left: 16px; top: max(14px, env(safe-area-inset-top)); }
 .hud-tr { right: 16px; top: max(14px, env(safe-area-inset-top)); }
-.hud-bl { left: 16px; bottom: max(170px, 42vw); width: 140px; }
-.hud-br { right: 16px; bottom: max(170px, 42vw); font-size: 32px; }
+.hud-bl { left: 16px; bottom: max(210px, 48vw); width: 140px; }
+.hud-br { right: 16px; bottom: max(210px, 48vw); font-size: 32px; }
 .seeds { font-size: 26px; }
 .job-name { font-size: 20px; }
-.prompt { bottom: 38%; }
+.prompt { bottom: 42%; }
 
 @media (min-width: 900px) {
-  .hud-bl { bottom: 160px; }
-  .hud-br { bottom: 160px; }
+  .hud-bl { bottom: 200px; }
+  .hud-br { bottom: 200px; }
 }

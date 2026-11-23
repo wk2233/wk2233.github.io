@@ -83,21 +83,20 @@
         <div><kbd>P</kbd> hide HUD · <kbd>M</kbd> mute · <kbd>J</kbd> journal</div>
       </div>
       <div class="keys-touch" hidden>
-        <div>左摇杆转向 · 俯仰</div>
-        <div>右上 <b>阵风</b> 加速 · 右下 <b>刹车</b></div>
-        <div>双击刹车 · 着陆交货</div>
+        <div>单摇杆：左右转向 · 上下俯仰</div>
+        <div>轻推前进巡航 · 推远加速 · 回中刹车</div>
+        <div>回中两次 · 着陆交货</div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- 手机触控：左摇杆 + 右加速/刹车（仅触屏设备显示） -->
+<!-- 手机：仅一个方向摇杆（推远=加速，回中=刹车） -->
 <div id="touch" hidden>
   <div id="touchStick" class="touch-stick" aria-label="steer">
     <div id="touchKnob" class="touch-knob"></div>
+    <div class="touch-hint">推远加速 · 回中刹车</div>
   </div>
-  <button type="button" id="touchBoost" class="touch-btn touch-boost" aria-label="boost">阵风</button>
-  <button type="button" id="touchBrake" class="touch-btn touch-brake" aria-label="brake">刹车</button>
 </div>
 
 <script type="module" src="./src/main.js"></script>
