@@ -27,17 +27,20 @@ export function petalColor(s, r) {
   return r < 0.66 ? PAL.red : r < 0.84 ? PAL.orange : r < 0.93 ? PAL.pinkA : PAL.white;
 }
 
+const FX_RATE = { low: 0.32, medium: 0.55, original: 0.78, high: 1 };
+
 export class WindFX {
   constructor(terrain, noise, depthUniform) {
     this.terrain = terrain;
     this.noise = noise;
-    const lite = !!(typeof window !== 'undefined' && window.PW && window.PW.mobile);
-    this.rate = lite ? 0.35 : 1;
-    this.flakes = new Flakes(lite ? 3500 : 12000);
-    this.sprites = new Sprites(depthUniform, lite ? 2200 : 7000);
-    this.ribbons = [new Ribbon(lite ? 24 : 44, 0.7), new Ribbon(lite ? 24 : 44, 0.7)];
+    // Pool sized for “original” look; spawn rate follows the graphics preset (not merely touch device).
+    this.rate = 1;
+    this.flakes = new Flakes(9000);
+    this.sprites = new Sprites(depthUniform, 5200);
+    this.ribbons = [new Ribbon(36, 0.7), new Ribbon(36, 0.7)];
     this.group = new THREE.Group();
     this.group.add(this.flakes.mesh, this.sprites.mesh, this.ribbons[0].mesh, this.ribbons[1].mesh);
+    this.setQuality(typeof window !== 'undefined' && window.PW ? window.PW.quality : 'medium');
     this.acc = new Float32Array(32);
     this.time = 0;
     this._sp = [0, 0, 0, 0];
@@ -55,6 +58,11 @@ export class WindFX {
       wake: (x, y, z, out) => (self.vortex ? self.vortex.sample(x, y, z, out) : 0),
       surface: (x, z) => self.surfaceAt(x, z),
     };
+  }
+
+  /** Throttle spawn rate to match the graphics preset (pools stay large enough for original). */
+  setQuality(name) {
+    this.rate = FX_RATE[name] ?? FX_RATE.medium;
   }
 
   // ------------------------------------------------------------------ fields

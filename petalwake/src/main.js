@@ -69,6 +69,7 @@ const game = {
   mobile,
   quality: 'medium',
   wantReflection: false,
+  protectScale: false,
 };
 window.PW = game;
 
@@ -85,6 +86,7 @@ const QUALITY_PRESETS = {
     meadow: 'mobile',
     reflection: false,
     shadows: false,
+    protectScale: false,
     params: { blur: 0, bloom: 0.04, rays: 0, distortion: 0, fringe: 0, vignette: 0.22 },
   },
   medium: {
@@ -98,7 +100,23 @@ const QUALITY_PRESETS = {
     meadow: 'low',
     reflection: false,
     shadows: false,
+    protectScale: false,
     params: { blur: 0, bloom: 0.06, rays: 0, distortion: 0, fringe: 0, vignette: 0.22 },
+  },
+  // “原版观感”: keep sharpness + meadow/wake; drop reflection / heavy lens (biggest mobile killers)
+  original: {
+    label: '原版观感',
+    maxDpr: 2,
+    scale: 1,
+    scales: [1, 0.92],
+    scaleIndex: 0,
+    samples: 0,
+    lite: true,          // fewer bloom mips — cheaper than full desktop stack
+    meadow: 'original',
+    reflection: false,   // planar reflection ≈ second terrain pass
+    shadows: false,
+    protectScale: true,  // resist auto downscale so it stays sharp
+    params: { blur: 0, bloom: 0.07, rays: 0, distortion: 0, fringe: 0, vignette: 0.2 },
   },
   high: {
     label: '高画质',
@@ -108,21 +126,24 @@ const QUALITY_PRESETS = {
     scaleIndex: 0,
     samples: 0,
     lite: false,
-    meadow: 'medium',
-    reflection: true,
+    meadow: 'high',
+    reflection: !mobile, // desktop can try reflection; phones skip
     shadows: false,
-    params: { blur: 0, bloom: 0.085, rays: 0.35, distortion: 0.06, fringe: 0.001, vignette: 0.24 },
+    protectScale: false,
+    params: { blur: 0, bloom: 0.085, rays: mobile ? 0 : 0.35, distortion: mobile ? 0 : 0.06, fringe: mobile ? 0 : 0.001, vignette: 0.24 },
   },
 };
 
 function readStoredQuality() {
   const fromUrl = params.get('quality');
+  if (fromUrl === 'high' && mobile) return 'original'; // old “high” on phones → original look
   if (fromUrl && QUALITY_PRESETS[fromUrl]) return fromUrl;
   try {
-    const s = localStorage.getItem('pw-quality');
+    let s = localStorage.getItem('pw-quality');
+    if (s === 'high' && mobile) s = 'original';
     if (s && QUALITY_PRESETS[s]) return s;
   } catch { /* private mode */ }
-  return mobile ? 'medium' : 'high';
+  return mobile ? 'original' : 'high';
 }
 
 let maxDpr = 1.35;
@@ -154,10 +175,14 @@ function applyQuality(name, { resizeNow = true, toastMsg = false } = {}) {
   auto.n = 0;
   pipeline.scale = SCALES[auto.i];
 
+  game.protectScale = !!preset.protectScale;
+  auto.hold = preset.protectScale ? 4 : 2;
+
   if (game.meadow) {
     const meadowQ = params.get('q') || preset.meadow;
     if (game.meadow.quality !== meadowQ) game.meadow.setQuality(meadowQ);
   }
+  if (game.fx?.setQuality) game.fx.setQuality(game.quality);
   if (preset.reflection && game.water && game.terrain && !game.water.reflRT) {
     try { game.water.setupReflection(renderer, game.terrain); } catch (e) { console.warn(e); }
   }
@@ -412,18 +437,21 @@ let last = 0;
 function autoScale(rawDt) {
   if (!auto.on || rawDt > 0.25) return;          // ignore hitches (tab switches, loading)
   auto.acc += rawDt; auto.n++;
-  if (auto.acc < (mobile ? 0.8 : 1.5)) return;
+  const windowSec = game.protectScale ? 1.4 : (mobile ? 0.8 : 1.5);
+  if (auto.acc < windowSec) return;
   const avg = auto.acc / auto.n;
   auto.acc = 0; auto.n = 0;
   if (auto.hold > 0) { auto.hold--; return; }
   let next = auto.i;
-  const slow = mobile ? 1 / 40 : 1 / 48;
-  const fast = mobile ? 1 / 52 : 1 / 58;
+  // original-look: only drop when clearly stuttering (<~28fps); recover when >40fps
+  const slow = game.protectScale ? 1 / 28 : (mobile ? 1 / 40 : 1 / 48);
+  const fast = game.protectScale ? 1 / 40 : (mobile ? 1 / 52 : 1 / 58);
+  const needGood = game.protectScale ? 5 : (mobile ? 2 : 4);
   if (avg > slow && auto.i < SCALES.length - 1) next++;
-  else if (avg < fast && auto.i > 0 && auto.good++ > (mobile ? 2 : 4)) next--;
+  else if (avg < fast && auto.i > 0 && auto.good++ > needGood) next--;
   if (avg >= fast) auto.good = 0;
   if (next !== auto.i) {
-    auto.i = next; auto.hold = mobile ? 1 : 2; auto.good = 0;
+    auto.i = next; auto.hold = game.protectScale ? 5 : (mobile ? 1 : 2); auto.good = 0;
     pipeline.scale = SCALES[next];
     resize();
   }

@@ -15,34 +15,37 @@ const SHARED = [...SKY_UNIFORMS, 'uTime', 'uHeightTex', 'uSplatTex', 'uLightTex'
 // shell definitions. fade = [in0, in1, out0, out1] (metres from camera)
 // ----------------------------------------------------------------------------------------
 export const QUALITY = {
-  high: { grass: 1.0, flowers: 1.0 },
-  medium: { grass: 0.6, flowers: 0.7 },
-  low: { grass: 0.33, flowers: 0.45 },
-  // phones: clearer than the first pass, still far cheaper than desktop
-  mobile: { grass: 0.22, flowers: 0.28 },
+  high: { grass: 1.0, flowers: 1.0, range: 1 },
+  // phone “original look”: dense near field, pull far shells in to save fill-rate
+  original: { grass: 0.78, flowers: 0.82, range: 0.78 },
+  medium: { grass: 0.6, flowers: 0.7, range: 0.9 },
+  low: { grass: 0.33, flowers: 0.45, range: 0.85 },
+  mobile: { grass: 0.22, flowers: 0.28, range: 0.75 },
 };
 
-function grassShells(q) {
+function grassShells(q, range = 1) {
+  const r = range;
   return [
-    { cell: 7, per: 176 * q, segs: 5, width: 0.021, height: 0.50, fade: [-1, 0, 11, 16], lean: 1.0, root: 1.0 },
-    { cell: 15, per: 42 * q, segs: 3, width: 0.046, height: 0.52, fade: [10, 15, 40, 52], lean: 1.0, root: 0.72 },
-    { cell: 34, per: 6.2 * q, segs: 2, width: 0.150, height: 0.56, fade: [38, 50, 118, 150], lean: 0.9, root: 0.30 },
+    { cell: 7, per: 176 * q, segs: 5, width: 0.021, height: 0.50, fade: [-1, 0, 11 * r, 16 * r], lean: 1.0, root: 1.0 },
+    { cell: 15, per: 42 * q, segs: 3, width: 0.046, height: 0.52, fade: [10 * r, 15 * r, 40 * r, 52 * r], lean: 1.0, root: 0.72 },
+    { cell: 34, per: 6.2 * q, segs: 2, width: 0.150, height: 0.56, fade: [38 * r, 50 * r, 118 * r, 150 * r], lean: 0.9, root: 0.30 },
   ];
 }
 // Flowers thin with distance as FLOWER_N0 * (FLOWER_D0 / d)^1.5 candidates per square metre, and
 // grow as (d / FLOWER_D0)^0.75, which keeps cover constant. (The splat density then decides how
 // many of the candidates actually bloom.)
 const FLOWER_N0 = 42, FLOWER_D0 = 14, FLOWER_END = 310;   // beyond that the ground's own flower wash carries the colour
-function flowerShells(q) {
+function flowerShells(q, range = 1) {
   // each shell supplies candidates at its own density and takes over where the field has thinned
   // to it: d = D0 * (N0 / N)^(2/3)
   const frac = [1, 0.38, 0.12, 0.03], cell = [11, 22, 46, 105], lod = [0, 1, 2, 2];
-  const at = (f) => FLOWER_D0 * Math.pow(1 / f, 2 / 3);
+  const at = (f) => FLOWER_D0 * range * Math.pow(1 / f, 2 / 3);
+  const end = FLOWER_END * range;
   return frac.map((f, i) => ({
     cell: cell[i], per: FLOWER_N0 * q * f, lod: lod[i], n0: FLOWER_N0 * q,
     near: i ? at(frac[i]) * 0.85 : -2,                    // starts fading in (the nearer shell is fading out)
     full: i ? at(frac[i]) : -1,                           // has taken over
-    far: i < frac.length - 1 ? at(frac[i + 1]) : FLOWER_END,   // has handed over to the next (or the field ends)
+    far: i < frac.length - 1 ? at(frac[i + 1]) : end,   // has handed over to the next (or the field ends)
   }));
 }
 
@@ -503,10 +506,11 @@ export class Meadow {
 
   setQuality(name) {
     const q = QUALITY[name] || QUALITY.high;
+    const range = q.range ?? 1;
     if (this.shells) for (const s of this.shells) { for (const m of s.pool) { this.group.remove(m); m.material.dispose(); } s.geo.dispose(); }
     this.shells = [
-      ...grassShells(q.grass).map((d) => new Shell(this, d, 'grass')),
-      ...flowerShells(q.flowers).map((d) => new Shell(this, d, 'flower')),
+      ...grassShells(q.grass, range).map((d) => new Shell(this, d, 'grass')),
+      ...flowerShells(q.flowers, range).map((d) => new Shell(this, d, 'flower')),
     ];
     this.quality = name;
   }
